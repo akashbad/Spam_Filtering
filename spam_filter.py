@@ -1,5 +1,8 @@
 import os
 import re
+import operator
+
+probability_table = {}
 
 # Internal functions, used to build dictionaries of spam data
 def build_frequency_dictionary(path):
@@ -49,26 +52,69 @@ def create_probability_table(spam, ham, spam_file_num, ham_file_num):
 			probabilities[word] = prob
 	return probabilities
 
+def check_incoming(email_text):
+	tokens = re.split("[^a-zA-Z\d\$\'-]", email_text.lower())
+	tokens.sort(key=define_interesting)
+	tokens = tokens [-15:]
+	token_probabilities = [define_interesting(token) for token in tokens]
+	token_pi = reduce(operator.mul,token_probabilities)
+	conjugate_pi = reduce(operator.mul, [1-token_probability for token_probability in token_probabilities])
+	value = token_pi/(token_pi+conjugate_pi)
+	return value > 0.9
+
+def define_interesting(word):
+	if word not in probability_table:
+		return .1
+	return abs(.5 - probability_table[word])
+
+def test_file(path):
+	file = open(path, "r")
+	text = file.read()
+	spam_check = check_incoming(text)
+	file.close()
+	return spam_check
+
+
+def test_directory(path):
+	file_paths = [path + file_name for file_name in os.listdir(path)]
+	filtered = 0;
+	passed = 0;
+	for current_path in file_paths:
+		file = open(current_path, "r")
+		text = file.read()
+		spam_check = check_incoming(text)
+		file.close()
+		if spam_check:
+			filtered += 1
+		else:
+			passed += 1
+	print "Filtered: " + str(filtered) + "\nPassed: " + str(passed)
 
 # Look through spam directories to build hash table of bad words
 bad_path1 = 'spam1/'
 bad_path2 = 'spam2/'
 
+# Generate the frequency tables for each spam word
 spam_dictionary = build_frequency_dictionary(bad_path1)
 merge_frequency_dictionaries(spam_dictionary, build_frequency_dictionary(bad_path2))
 
+# Do the same for the ham words, generate the tables
 good_path1 = 'easy_ham/'
 good_path2 = 'hard_ham/'
 
 ham_dictionary = build_frequency_dictionary(good_path1)
 merge_frequency_dictionaries(ham_dictionary, build_frequency_dictionary(good_path2))
 
+# Get the number of spam and ham files
 spam_file_num = len(os.listdir(bad_path1)) + len(os.listdir(bad_path2))
 ham_file_num = len(os.listdir(good_path1)) + len(os.listdir(good_path2))
 
-probabilities = create_probability_table(spam_dictionary, ham_dictionary, spam_file_num, ham_file_num)
+# Generate the probabilities table, this is all of the prework that we can do
+probability_table = create_probability_table(spam_dictionary, ham_dictionary, spam_file_num, ham_file_num)
 
-print probabilities
+single_file = 'spam1/0494.a0865131f55d26362a8efad99c37de01'
+
+print test_file(single_file)
 
 
 	
